@@ -4,10 +4,12 @@ import pygame
 WHITE = (255, 255, 255)
 
 # Function to draw text onto a surface
-@staticmethod
-def drawText(surf, text, size, x, y, color=WHITE, pos="midtop", font="arial"):
-    fontSurface = pygame.font.match_font(font, size)
-    textSurface = fontSurface.render(text, True, color)
+def drawText(surf, text, size, x, y, color=WHITE, pos="midtop", font="Mulish.tff"):
+    
+    fontPath = pygame.font.match_font(font)
+
+    font = pygame.font.Font(fontPath, size)
+    textSurface = font.render(text, True, color)
     textRect = textSurface.get_rect()
 
     # Position of the text on the item
