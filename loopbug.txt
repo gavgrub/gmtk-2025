@@ -1,0 +1,24 @@
+loopbug - a game about a bug which can only move in loops
+
+Gameplay
+- inside of a lab of some kind, initially bug is doing experiments in the lab
+- something goes wrong 2/3rds of the way, lights flashing and bug trying to escape the lab
+- loopbug gets bigger as the game progresses
+- loop nodes - levels are built around placing or activating objects the bug wants to loop
+- bug has to propel itself through its loops (loops give it grip), make it so that it can control both ends of itself
+- should be able to\ crunch up and stretch out
+- bug should never be able to die, it should just turn red and make a noise if it hits something
+
+Art
+- cutesy art style / aesthetic 
+- minimalist, similar style to something like that one rythmn game your brothers play
+
+Sounds
+- loopbug should 
+- makes huh noise when confused and donk noise when hits wall
+- ambient lab hum alongside soft synth music
+- pitter pater when walking
+- the scientists should sound like Charlie brown characters
+
+Music
+- little samba - quincas moreira
