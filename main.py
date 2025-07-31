@@ -9,8 +9,10 @@ NUM_ITER = 10
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+GREY = (100, 100, 100)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
+GREEN = (0, 255, 0)
 
 # Manages all of the objects in the map
 class Objects:
@@ -56,7 +58,6 @@ class Circle(Object):
     # Determines if a point is intersecting with the circle (special due to the circular hitbox)
     def intersecting(self, x, y):
         distance = math.sqrt((self.x - x) ** 2 + (self.y - y) ** 2)
-        print(distance)
         return distance < self.radius
 
 # Worm body segments
@@ -74,8 +75,13 @@ class Particle:
         self.ay = 0
         
         self.fixed = False
+        self.intersection = False
+        self.intersectingWith = None
         
-    def update(self, delta_t):
+    def update(self, delta_t, canIntersect = True):
+        self.intersection = False
+        self.intersectingWith = None
+
         if self.fixed:
             return
 
@@ -87,11 +93,14 @@ class Particle:
             self.y, self.oldy = self.oldy, self.y
 
         # Objects
-        intersecting = False
-        for object in Objects.objects:
-            if object.intersecting(self.x, self.y):
-                intersecting = True
-                break
+        if canIntersect:
+            for object in Objects.objects:
+                if object.intersecting(self.x, self.y):
+                    self.x, self.oldx = self.oldx, self.x
+                    self.y, self.oldy = self.oldy, self.y
+                    self.intersectingWith = object
+                    self.intersection = True
+                    break
 
         friction = 0.99
         velocity_x = (self.x - self.oldx) * friction
@@ -106,8 +115,16 @@ class Particle:
         self.y = self.newy
         
     def draw(self, surf, size):
-        pygame.draw.circle(surf, WHITE, (int(self.x) + width / 2, int(self.y) + height / 2), size)
+        global worm
 
+        if (self == worm.head):
+            color = GREY
+        elif (self.intersection == True):
+            color = BLUE
+        else:
+            color = WHITE
+
+        pygame.draw.circle(surf, color, (int(self.x) + width / 2, int(self.y) + height / 2), size)
         
 class Constraint:
     def __init__(self, index0, index1, listPointer):
@@ -143,8 +160,9 @@ class Constraint:
 # This class handles the main character in the game
 class Worm:
     segmentSep = 10
+    bodySize = 10
 
-    def __init__(self, x, y, length = 20):
+    def __init__(self, x, y, length = 40):
 
         # Create the worm body
         self.body = []
@@ -159,48 +177,97 @@ class Worm:
             c = Constraint(index0, index1, self.body)
             self.constraints.append(c)
 
-        #Lock the last part of the worm body
-        self.body[-1].fixed = True
+        # Determine the start and the end of the worm
+        self.head = self.body[0]
+        self.tail = self.body[-1]
+
+        # Lock the last part of the worm body
+        self.tail.fixed = True
+
+        self.noStick = set()
 
     def update(self):
         # body parts update
         for i in range(len(self.body)):
-            self.body[i].update(delta_t)
+            self.body[i].update(delta_t, self.body[i] != self.head)
         # constraints update
         for n in range(NUM_ITER):
             for i in range(len(self.constraints)):
                 self.constraints[i].update()
 
+        # Remove things from no stick
+        canRemove = self.noStick.copy()
+        for i in self.body:
+            if i.intersectingWith in canRemove:
+                canRemove.remove(i.intersectingWith)
+        for i in canRemove:
+            if i in self.noStick:
+                self.noStick.remove(i)
+
+        # Determining if the head and any individual part of the worm are touching each other
+        # If so, whether to consider that a new loop has been created
+        for a in self.body:
+            for b in self.body:
+
+                distance = math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+                indexDistance = abs(self.body.index(a) - self.body.index(b))
+                if (distance < Worm.bodySize) and (indexDistance > 4):
+
+                    startIndex = min(self.body.index(a), self.body.index(b))
+
+                    total = 0
+                    object = None
+                    for i in range(startIndex, indexDistance + startIndex):
+                        if self.body[i].intersection and not (self.body[i].intersectingWith in self.noStick):
+                            total += 1
+                            object = self.body[i].intersectingWith
+                    average = total / indexDistance
+
+                    if (average > 0.5):
+                        for i in self.body:
+                            i.fixed = False
+
+                        a.fixed = True
+                        b.fixed = True
+
+                        self.head, self.tail = self.tail, self.head
+
+                        for i in self.body:
+                            if not i.intersectingWith == None:
+                                self.noStick.add(i.intersectingWith)
+                        break
+
     def draw(self):
         # particles draw
         for i in range(len(self.body)):
-            self.body[i].draw(screen, 3)
+            self.body[i].draw(screen, Worm.bodySize)
         # constraints draw
-        for i in range(len(self.constraints)):
-            self.constraints[i].draw(screen, 1)
+        #for i in range(len(self.constraints)):
+        #    self.constraints[i].draw(screen, 1)
 
     # This function moves the worm
     def move(self, x, y):
-        head = self.body[0]
-        if head.fixed:
+        if self.head.fixed:
             return
 
-        dx = x - head.x
-        dy = y - head.y
+        dx = x - self.head.x
+        dy = y - self.head.y
         dist = math.hypot(dx, dy)
 
-        max_force = 10  # Maximum movement per update
+        max_force = 5  # Maximum movement per update
         if dist > 0:
             dx = dx / dist * min(dist, max_force)
             dy = dy / dist * min(dist, max_force)
 
         strength = 2
-        head.oldx = head.x - dx * strength
-        head.oldy = head.y - dy * strength
+        self.head.oldx = self.head.x - dx * strength
+        self.head.oldy = self.head.y - dy * strength
 
 class Controller:
     @staticmethod
     def input():
+        global worm
+
         pressed1, pressed2, pressed3 = pygame.mouse.get_pressed()
         xMouse, yMouse = pygame.mouse.get_pos()
 
@@ -213,6 +280,10 @@ class Controller:
             #Check for closeing window
             if event.type == pygame.QUIT:
                 sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    worm = Worm(50, 50)
 
     @staticmethod
     def update():
@@ -234,9 +305,10 @@ screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Main")
 clock = pygame.time.Clock()
 
-worm = Worm(0, 0)
+worm = Worm(50, 50)
 
-Objects.add(Circle(20, 20, 30, BLUE))
+for i in range(0, 6):
+    Objects.add(Circle(math.cos(math.pi / 3 * i) * 200, math.sin(math.pi / 3 * i) * 200, 30, GREEN))
 
 #Game Loop
 while True:
